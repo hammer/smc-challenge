@@ -2,12 +2,16 @@
 import argparse
 import hashlib
 import logging
+import random
+import string
+import urllib
 
 import bencode
 from Crypto.PublicKey import RSA
 import pkiutils
 import requests
 
+FINGERPRINT_PREFIX = '-GT3850-'
 GT_CERT_SIGN_TAIL = 'gtsession'
 RSA_KEY_SIZE = 1024
 RSA_EXPONENT = 65537 # RSA_F4
@@ -51,6 +55,37 @@ def get_crt(cert_sign_url, auth_token, csr, info_hash):
     r = requests.post(cert_sign_url, data=payload)
     return r.content
 
+def get_random_string(n):
+    return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(n))
+
+def get_fingerprint():
+    suffix = get_random_string(12)
+    return FINGERPRINT_PREFIX + suffix
+
+def make_tracker_request(gto_dict, info_hash):
+    peer_id = get_fingerprint()
+    left = sum([f.get('length') for f in gto_dict.get('info').get('files')])
+    key = get_random_string(8)
+    payload = {
+        'info_hash': info_hash,
+        'peer_id': peer_id,
+        'port': 20893,
+        'uploaded': 0,
+        'downloaded': 0,
+        'left': left,
+        'corrupt': 0,
+        'redundant': 0,
+        'compact': 1,
+        'numwant': 200,
+        'key': key,
+        'no_peer_id': 1,
+        'supportcrypto': 1,
+        'event': 'started',
+    }
+    url_base = 'https://dream.annailabs.com:21111/tracker.php/announce0&'
+    r = requests.get(url_base + urllib.urlencode(payload))
+    return r.content
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -81,5 +116,7 @@ if __name__ == '__main__':
         logging.debug('CSR generated: %s' % csr)
         crt = get_crt(cert_sign_url, auth_token, csr, info_hash)
         logging.debug('Got signed CRT: %s' % crt)
+        tracker_response = make_tracker_request(gto_dict, info_hash)
+        logging.debug('Got tracker response: %s' % tracker_response)
 
         # TODO(hammer): Download
