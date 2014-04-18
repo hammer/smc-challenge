@@ -68,6 +68,7 @@ if __name__ == '__main__':
         logging.debug('Got info_hash: %s' % info_hash)
         rsa = RSA.generate(bits=RSA_KEY_SIZE, e=RSA_EXPONENT)
         logging.debug('RSA keypair generated; public key: %s' % rsa.publickey().exportKey())
-        pkiutils.create_csr(rsa, DISTINGUISHED_NAME)
+        csr = pkiutils.create_csr(rsa, DISTINGUISHED_NAME)
+        logging.debug('CSR generated: %s' % csr)
 
         # TODO(hammer): Download
