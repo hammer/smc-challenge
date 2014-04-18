@@ -42,6 +42,15 @@ def get_cert_sign_url(content_specifier):
 def get_info_hash(gto_dict):
     return hashlib.sha1(bencode.bencode(gto_dict.get('info'))).hexdigest()
 
+def get_crt(cert_sign_url, auth_token, csr, info_hash):
+    payload = {
+        'token': auth_token,
+        'cert_req': csr,
+        'info_hash': info_hash,
+    }
+    r = requests.post(cert_sign_url, data=payload)
+    return r.content
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -70,5 +79,7 @@ if __name__ == '__main__':
         logging.debug('RSA keypair generated; public key: %s' % rsa.publickey().exportKey())
         csr = pkiutils.create_csr(rsa, DISTINGUISHED_NAME)
         logging.debug('CSR generated: %s' % csr)
+        crt = get_crt(cert_sign_url, auth_token, csr, info_hash)
+        logging.debug('Got signed CRT: %s' % crt)
 
         # TODO(hammer): Download
