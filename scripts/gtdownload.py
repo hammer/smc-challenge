@@ -4,9 +4,22 @@ import hashlib
 import logging
 
 import bencode
+from Crypto.PublicKey import RSA
+import pkiutils
 import requests
 
 GT_CERT_SIGN_TAIL = 'gtsession'
+RSA_KEY_SIZE = 1024
+RSA_EXPONENT = 65537 # RSA_F4
+DISTINGUISHED_NAME = {
+    'c': 'US',
+    'st': 'CA',
+    'l': 'San Jose',
+    'o': 'ploaders, Inc',
+    'ou': 'staff',
+    'cn': 'www.uploadersinc.com',
+    'emailaddress': 'root@uploadersinc.com',
+}
 
 def get_auth_token(credential_file):
     # TODO(hammer): handle URLs and files
@@ -53,6 +66,8 @@ if __name__ == '__main__':
         logging.debug('Got cert_sign_url: %s' % cert_sign_url)
         info_hash = get_info_hash(gto_dict)
         logging.debug('Got info_hash: %s' % info_hash)
-        # TODO(hammer): security theater
+        rsa = RSA.generate(bits=RSA_KEY_SIZE, e=RSA_EXPONENT)
+        logging.debug('RSA keypair generated; public key: %s' % rsa.publickey().exportKey())
+        pkiutils.create_csr(rsa, DISTINGUISHED_NAME)
 
         # TODO(hammer): Download
