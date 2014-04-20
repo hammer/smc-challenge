@@ -64,6 +64,26 @@ def get_fingerprint():
     suffix = get_random_string(12)
     return FINGERPRINT_PREFIX + suffix
 
+def get_temp_crt_file_path(crt):
+    temp_crt_file_fd, temp_crt_file_path = tempfile.mkstemp('.crt')
+    temp_crt_file = os.fdopen(temp_crt_file_fd, 'w')
+    temp_crt_file.write(crt)
+    temp_crt_file.close()
+    logging.debug('Wrote %s' % temp_crt_file_path)
+    return temp_crt_file_path
+
+def get_temp_key_file_path(rsa):
+    temp_key_file_fd, temp_key_file_path = tempfile.mkstemp('.key')
+    temp_key_file = os.fdopen(temp_key_file_fd, 'w')
+    key = rsa.exportKey('DER', pkcs=8).encode('base64').strip()
+    chunk_key = [key[i:i + 64] for i in xrange(0, len(key), 64)]
+    temp_key_file.write('-----BEGIN PRIVATE KEY-----\n')
+    temp_key_file.writelines(chunk_key)
+    temp_key_file.write('\n-----END PRIVATE KEY-----\n')
+    temp_key_file.close()
+    logging.debug('Wrote %s' % temp_key_file_path)
+    return temp_key_file_path
+
 def make_tracker_request(gto_dict, info_hash, rsa, crt):
     peer_id = get_fingerprint()
     left = sum([f.get('length') for f in gto_dict.get('info').get('files')])
@@ -85,25 +105,15 @@ def make_tracker_request(gto_dict, info_hash, rsa, crt):
         'event': 'started',
     }
     url_base = 'https://dream.annailabs.com:21111/tracker.php/announce'
-    temp_crt_file_fd, temp_crt_file_path = tempfile.mkstemp('.crt')
-    temp_crt_file = os.fdopen(temp_crt_file_fd, 'w')
-    temp_crt_file.write(crt)
-    temp_crt_file.close()
-    logging.debug('Wrote %s' % temp_crt_file_path)
-    temp_key_file_fd, temp_key_file_path = tempfile.mkstemp('.key')
-    temp_key_file = os.fdopen(temp_key_file_fd, 'w')
-    key = rsa.exportKey('DER', pkcs=8).encode('base64').strip()
-    chunk_key = [key[i:i + 64] for i in xrange(0, len(key), 64)]
-    temp_key_file.write('-----BEGIN PRIVATE KEY-----\n')
-    temp_key_file.writelines(chunk_key)
-    temp_key_file.write('\n-----END PRIVATE KEY-----\n')
-    temp_key_file.close()
-    logging.debug('Wrote %s' % temp_key_file_path)
-    r = requests.get(url_base, data=payload,
+    temp_crt_file_path = get_temp_crt_file_path(crt)
+    temp_key_file_path = get_temp_key_file_path(rsa)
+    r = requests.get(url_base, params=payload, verify=False,
                      cert=(temp_crt_file_path, temp_key_file_path))
+    logging.debug('Tracker response content: %s' % r.content)
     os.remove(temp_crt_file_path)
     os.remove(temp_key_file_path)
-    return r.content
+    tracker_response = bencode.bdecode(r.content.strip())
+    return tracker_response
 
 
 if __name__ == '__main__':
