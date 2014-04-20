@@ -10,8 +10,10 @@ import urllib
 
 import bencode
 from Crypto.PublicKey import RSA
-import pkiutils
 import requests
+
+import pkiutils # Use https://github.com/hammer/python-pkiutils
+
 
 FINGERPRINT_PREFIX = '-GT3850-'
 GT_CERT_SIGN_TAIL = 'gtsession'
@@ -85,6 +87,7 @@ def get_temp_key_file_path(rsa):
     return temp_key_file_path
 
 def make_tracker_request(gto_dict, info_hash, rsa, crt):
+    # TODO(hammer): support partial downloads
     peer_id = get_fingerprint()
     left = sum([f.get('length') for f in gto_dict.get('info').get('files')])
     key = get_random_string(8)
@@ -145,7 +148,7 @@ if __name__ == '__main__':
         logging.debug('CSR generated: %s' % csr)
         crt = get_crt(cert_sign_url, auth_token, csr, info_hash)
         logging.debug('Got signed CRT: %s' % crt)
-        tracker_response = make_tracker_request(gto_dict, info_hash, rsa, crt)
-        logging.debug('Got tracker response: %s' % tracker_response)
 
         # TODO(hammer): Download
+        tracker_response = make_tracker_request(gto_dict, info_hash, rsa, crt)
+        logging.debug('Got tracker response: %s' % tracker_response)
