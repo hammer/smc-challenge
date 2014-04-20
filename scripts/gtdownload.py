@@ -2,8 +2,10 @@
 import argparse
 import hashlib
 import logging
+import os
 import random
 import string
+import tempfile
 import urllib
 
 import bencode
@@ -62,7 +64,7 @@ def get_fingerprint():
     suffix = get_random_string(12)
     return FINGERPRINT_PREFIX + suffix
 
-def make_tracker_request(gto_dict, info_hash):
+def make_tracker_request(gto_dict, info_hash, rsa, crt):
     peer_id = get_fingerprint()
     left = sum([f.get('length') for f in gto_dict.get('info').get('files')])
     key = get_random_string(8)
@@ -82,8 +84,25 @@ def make_tracker_request(gto_dict, info_hash):
         'supportcrypto': 1,
         'event': 'started',
     }
-    url_base = 'https://dream.annailabs.com:21111/tracker.php/announce0&'
-    r = requests.get(url_base + urllib.urlencode(payload))
+    url_base = 'https://dream.annailabs.com:21111/tracker.php/announce'
+    temp_crt_file_fd, temp_crt_file_path = tempfile.mkstemp('.crt')
+    temp_crt_file = os.fdopen(temp_crt_file_fd, 'w')
+    temp_crt_file.write(crt)
+    temp_crt_file.close()
+    logging.debug('Wrote %s' % temp_crt_file_path)
+    temp_key_file_fd, temp_key_file_path = tempfile.mkstemp('.key')
+    temp_key_file = os.fdopen(temp_key_file_fd, 'w')
+    key = rsa.exportKey('DER', pkcs=8).encode('base64').strip()
+    chunk_key = [key[i:i + 64] for i in xrange(0, len(key), 64)]
+    temp_key_file.write('-----BEGIN PRIVATE KEY-----\n')
+    temp_key_file.writelines(chunk_key)
+    temp_key_file.write('\n-----END PRIVATE KEY-----\n')
+    temp_key_file.close()
+    logging.debug('Wrote %s' % temp_key_file_path)
+    r = requests.get(url_base, data=payload,
+                     cert=(temp_crt_file_path, temp_key_file_path))
+    os.remove(temp_crt_file_path)
+    os.remove(temp_key_file_path)
     return r.content
 
 
@@ -116,7 +135,7 @@ if __name__ == '__main__':
         logging.debug('CSR generated: %s' % csr)
         crt = get_crt(cert_sign_url, auth_token, csr, info_hash)
         logging.debug('Got signed CRT: %s' % crt)
-        tracker_response = make_tracker_request(gto_dict, info_hash)
+        tracker_response = make_tracker_request(gto_dict, info_hash, rsa, crt)
         logging.debug('Got tracker response: %s' % tracker_response)
 
         # TODO(hammer): Download
